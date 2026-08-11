@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Cotizador GYP INCO</title>
+<meta name="theme-color" content="#C17F3A">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cotizador GYP">
+<style>
+:root{
+  --terracota:#C17F3A; --terracota-d:#9A6028;
+  --crema:#F0EDE8; --borde:#D5D0C8; --borde2:#E4DFD6;
+  --texto:#1A1A18; --gris:#666; --gris-claro:#999;
+  --verde:#4E8A1C; --verde-bg:#EAF1DC; --verde-tx:#2E600E;
+  --rojo:#D14343; --rojo-bg:#FAE6E5; --rojo-tx:#922E2E;
+  --azul:#2063B5; --ambar-bg:#FBF0E4; --ambar-tx:#8C5018;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+  background:var(--crema); color:var(--texto); font-size:15px;
+  padding-bottom:calc(64px + env(safe-area-inset-bottom));
+  padding-top:env(safe-area-inset-top);
+}
+input,select,textarea{
+  font-family:inherit; font-size:15px; background:#fff; color:var(--texto);
+  border:1.5px solid var(--borde); border-radius:10px; padding:10px 12px; width:100%;
+}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--terracota)}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+
+/* ---------- Header ---------- */
+header{
+  position:sticky; top:0; z-index:20; background:#fff;
+  border-bottom:1px solid var(--borde2);
+  padding:14px 16px calc(10px + env(safe-area-inset-top)) 16px;
+  padding-top:calc(14px + env(safe-area-inset-top));
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+}
+.brand{display:flex; align-items:center; gap:8px}
+.brand-logo{width:34px;height:34px;border-radius:8px;background:var(--terracota);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0}
+.brand-name{font-weight:800; font-size:14px; letter-spacing:.02em}
+.brand-sub{font-size:10.5px; color:var(--gris-claro); margin-top:1px}
+.conn-pill{font-size:10.5px; font-weight:700; padding:4px 9px; border-radius:20px; white-space:nowrap}
+.conn-on{background:var(--verde-bg); color:var(--verde-tx)}
+.conn-off{background:var(--rojo-bg); color:var(--rojo-tx)}
+
+/* ---------- Views ---------- */
+main{padding:14px 16px 24px}
+.view{display:none}
+.view.on{display:block; animation:fade .18s ease}
+@keyframes fade{from{opacity:0; transform:translateY(4px)} to{opacity:1; transform:translateY(0)}}
+
+.view-title{font-size:19px; font-weight:800; margin-bottom:2px}
+.view-sub{font-size:12.5px; color:var(--gris); margin-bottom:16px}
+
+/* ---------- Buttons ---------- */
+.btn{padding:11px 18px; border-radius:11px; font-weight:700; font-size:14px; display:inline-flex;
+  align-items:center; justify-content:center; gap:6px; border:1.5px solid var(--borde)}
+.btn-block{width:100%}
+.btn-primary{background:var(--terracota); color:#fff; border-color:var(--terracota)}
+.btn-primary:active{background:var(--terracota-d)}
+.btn-outline{background:#fff; color:var(--texto)}
+.btn-green{background:var(--verde); color:#fff; border-color:var(--verde)}
+.btn:disabled{opacity:.5}
+.btn-sm{padding:7px 12px; border-radius:8px; font-size:12.5px; font-weight:700; background:#fff; border:1.5px solid var(--borde)}
+.btn-danger{color:var(--rojo-tx); border-color:var(--rojo)}
+
+/* ---------- Home / cards ---------- */
+.qcard{background:#fff; border-radius:14px; padding:14px; margin-bottom:10px; border-left:4px solid var(--borde)}
+.qcard-pend{border-left-color:var(--terracota)}
+.qcard-sent{border-left-color:var(--verde)}
+.qcard-top{display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:6px}
+.qcard-cli{font-weight:700; font-size:14.5px}
+.qcard-meta{font-size:11.5px; color:var(--gris); margin-top:2px}
+.qcard-total{font-size:18px; font-weight:800; color:var(--azul); margin-bottom:8px}
+.qcard-actions{display:flex; gap:8px}
+.chip{font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:20px; white-space:nowrap; flex-shrink:0}
+.chip-amber{background:var(--ambar-bg); color:var(--ambar-tx)}
+.chip-green{background:var(--verde-bg); color:var(--verde-tx)}
+
+.empty{text-align:center; padding:50px 20px; color:var(--gris-claro)}
+.empty-ico{font-size:40px; margin-bottom:10px}
+.empty p{margin-bottom:16px; font-size:13.5px}
+.empty-mini{text-align:center; color:var(--gris-claro); font-size:12.5px; padding:16px; background:#fff; border-radius:10px}
+
+.top-actions{display:flex; gap:8px; margin-bottom:14px}
+
+/* ---------- Form ---------- */
+.field{margin-bottom:12px}
+.field label{display:block; font-size:11px; font-weight:700; color:var(--gris); text-transform:uppercase; letter-spacing:.03em; margin-bottom:4px}
+.field-row{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.field-row3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px}
+.section-h{font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--terracota-d);
+  margin:20px 0 10px; padding-bottom:6px; border-bottom:2px solid var(--terracota)}
+
+/* ---------- Items de cotización ---------- */
+.item-row{background:#fff; border-radius:12px; padding:12px; margin-bottom:8px; position:relative; border:1px solid var(--borde2)}
+.item-x{position:absolute; top:8px; right:8px; width:26px; height:26px; border-radius:8px; background:var(--rojo-bg);
+  color:var(--rojo-tx); font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center}
+.item-desc{font-weight:700; font-size:13.5px; padding-right:30px; margin-bottom:8px}
+.item-code{font-weight:400; color:var(--gris-claro); font-size:11px}
+.item-desc-inp{margin-bottom:8px; padding-right:34px}
+.item-grid{display:grid; grid-template-columns:1fr 0.8fr 1.3fr; gap:6px}
+.item-grid label{font-size:9.5px; font-weight:700; color:var(--gris-claro); text-transform:uppercase}
+.item-grid input{padding:7px 8px; font-size:13px; margin-top:2px}
+.item-total{text-align:right; font-weight:800; color:var(--azul); font-size:13.5px; margin-top:8px}
+
+.btn-add-item{width:100%; padding:12px; border:1.5px dashed var(--borde); border-radius:12px; color:var(--gris);
+  font-weight:700; font-size:13px; background:#fff; margin-bottom:8px}
+
+.tot-box{background:#fff; border-radius:12px; padding:14px; margin:10px 0 18px; font-size:13px; border:1px solid var(--borde2)}
+.tot-box .neg{color:#7B5EA7}
+.tot-final{font-size:19px; font-weight:800; color:var(--verde-tx); margin-top:8px; padding-top:8px; border-top:1.5px dashed var(--borde)}
+
+/* ---------- Material search modal ---------- */
+.modal-ov{position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:100; display:none;
+  align-items:flex-end; justify-content:center}
+.modal-ov.on{display:flex}
+.modal-sheet{background:#fff; width:100%; max-width:560px; border-radius:18px 18px 0 0; max-height:82vh;
+  display:flex; flex-direction:column; padding:14px 14px calc(14px + env(safe-area-inset-bottom))}
+.modal-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px}
+.modal-head h3{font-size:15px; font-weight:800}
+.modal-close{width:30px; height:30px; border-radius:9px; background:var(--crema); font-size:15px; font-weight:700}
+.mat-results{overflow-y:auto; flex:1; margin-top:8px}
+.mat-item{display:flex; align-items:center; gap:8px; padding:10px 6px; border-bottom:1px solid var(--borde2)}
+.mat-code{font-family:monospace; font-size:10px; background:var(--crema); padding:2px 6px; border-radius:4px; flex-shrink:0}
+.mat-desc{flex:1; font-size:12.5px; font-weight:600; line-height:1.3}
+.mat-price{font-size:11.5px; font-weight:700; color:var(--verde-tx); flex-shrink:0}
+.mat-none{text-align:center; color:var(--gris-claro); font-size:12.5px; padding:20px}
+
+/* ---------- Config ---------- */
+.info-box{background:#fff; border-radius:12px; padding:12px 14px; font-size:12px; color:var(--gris); margin-bottom:14px; border:1px solid var(--borde2)}
+.help-text{font-size:11px; color:var(--gris-claro); margin-top:4px; line-height:1.5}
+.badge-count{background:var(--rojo); color:#fff; font-size:9.5px; font-weight:800; border-radius:20px;
+  padding:1px 6px; margin-left:4px; min-width:16px; text-align:center; display:inline-block}
+.badge-count:empty,.badge-count[data-zero="1"]{display:none}
+
+/* ---------- Bottom tabs ---------- */
+nav.tabbar{position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--borde2);
+  display:flex; z-index:30; padding-bottom:env(safe-area-inset-bottom)}
+.tab{flex:1; padding:9px 4px 8px; display:flex; flex-direction:column; align-items:center; gap:2px;
+  color:var(--gris-claro); font-size:10.5px; font-weight:700}
+.tab .tab-ico{font-size:19px}
+.tab.act{color:var(--terracota)}
+
+/* ---------- Toast ---------- */
+.toast{position:fixed; left:50%; bottom:76px; transform:translateX(-50%) translateY(10px);
+  background:var(--texto); color:#fff; padding:10px 18px; border-radius:30px; font-size:13px; font-weight:600;
+  z-index:200; opacity:0; pointer-events:none; transition:all .2s; max-width:88vw; text-align:center}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+.toast.ok{background:var(--verde)}
+.toast.err{background:var(--rojo)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-logo">G&amp;P</div>
+    <div>
+      <div class="brand-name">Cotizador GYP INCO</div>
+      <div class="brand-sub">Modo sin conexión</div>
+    </div>
+  </div>
+  <span id="conn-pill" class="conn-pill conn-off">○ Sin conexión</span>
+</header>
+
+<main>
+
+  <!-- ===================== HOME ===================== -->
+  <section id="view-home" class="view on">
+    <div class="view-title">Cotizaciones</div>
+    <div class="view-sub">Se guardan en este celular y se envían cuando haya internet.</div>
+
+    <div class="top-actions">
+      <button class="btn btn-primary btn-block" onclick="nuevaCotizacion()">+ Nueva cotización</button>
+    </div>
+    <div class="top-actions">
+      <button id="btn-sync" class="btn btn-outline btn-block" onclick="sincronizarPendientes()">
+        ↑ Enviar pendientes <span id="badge-pend" class="badge-count">0</span>
+      </button>
+    </div>
+
+    <div id="home-list"></div>
+  </section>
+
+  <!-- ===================== NUEVA COTIZACIÓN ===================== -->
+  <section id="view-nueva" class="view">
+    <div class="view-title">Nueva cotización</div>
+    <div class="view-sub">Se guarda en el celular. No necesitas internet.</div>
+
+    <form id="cot-form" onsubmit="return false">
+
+      <div class="field">
+        <label>Empresa que cotiza *</label>
+        <select id="cot-em"></select>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Fecha</label>
+          <input type="date" id="cot-fecha">
+        </div>
+        <div class="field">
+          <label>Vigencia (días)</label>
+          <input type="number" value="30" disabled style="opacity:.6">
+        </div>
+      </div>
+
+      <div class="section-h">Datos del cliente</div>
+      <div class="field">
+        <label>Nombre / Razón social *</label>
+        <input id="cot-cnom" placeholder="NOMBRE DEL CLIENTE" style="text-transform:uppercase">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>NIT / Cédula</label>
+          <input id="cot-cnit">
+        </div>
+        <div class="field">
+          <label>Teléfono</label>
+          <input id="cot-ctel" type="tel">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Ciudad</label>
+          <input id="cot-cciudad" style="text-transform:uppercase">
+        </div>
+        <div class="field">
+          <label>Dirección</label>
+          <input id="cot-cdir" style="text-transform:uppercase">
+        </div>
+      </div>
+
+      <div class="section-h">Materiales / ítems</div>
+      <div id="cot-items"></div>
+      <button type="button" class="btn-add-item" onclick="abrirBuscadorMaterial()">🔍 Agregar material del catálogo</button>
+      <button type="button" class="btn-add-item" onclick="agregarItemLibre()">✎ Agregar ítem libre (mano de obra, servicio...)</button>
+
+      <div class="section-h">Totales</div>
+      <div class="field-row">
+        <div class="field">
+          <label>Descuento %</label>
+          <input type="number" id="cot-desc" value="0" min="0" max="100" oninput="calcTotales()">
+        </div>
+        <div class="field">
+          <label>IVA %</label>
+          <select id="cot-iva" onchange="calcTotales()">
+            <option value="19" selected>19%</option>
+            <option value="5">5%</option>
+            <option value="0">0% — Exento</option>
+          </select>
+        </div>
+      </div>
+      <div id="cot-tot" class="tot-box"></div>
+
+      <div class="field">
+        <label>Observaciones</label>
+        <textarea id="cot-notas" rows="2"></textarea>
+      </div>
+
+      <button type="button" class="btn btn-primary btn-block" style="margin-top:6px" onclick="guardarCotizacionLocal()">
+        💾 Guardar cotización
+      </button>
+    </form>
+  </section>
+
+  <!-- ===================== CONFIGURACIÓN ===================== -->
+  <section id="view-config" class="view">
+    <div class="view-title">Configuración</div>
+    <div class="view-sub">Conecta esta app con tu sistema de bodega.</div>
+
+    <div class="info-box">
+      Pide a quien administra el sistema la <b>URL de la aplicación web</b> y el <b>token de acceso móvil</b>.
+      Configúralos aquí una sola vez — quedan guardados en este celular.
+    </div>
+
+    <div class="field">
+      <label>URL del sistema (Web App)</label>
+      <input id="cfg-url" placeholder="https://script.google.com/macros/s/AKfycb.../exec">
+    </div>
+    <div class="field">
+      <label>Token de acceso</label>
+      <input id="cfg-token" type="text" placeholder="Token proporcionado por el administrador">
+    </div>
+    <button class="btn btn-primary btn-block" onclick="guardarConfig()">Guardar configuración</button>
+
+    <div class="section-h">Catálogo de materiales</div>
+    <div class="info-box" id="cfg-cat-info">Aún no se ha descargado el catálogo.</div>
+    <button id="btn-actualizar-cat" class="btn btn-outline btn-block" onclick="actualizarCatalogo()">⬇ Actualizar catálogo</button>
+    <p class="help-text">Descarga los materiales y precios sugeridos una vez que tengas internet (por ejemplo, en la oficina o con datos móviles). Después podrás cotizar sin conexión usando esos datos.</p>
+
+  </section>
+
+</main>
+
+<nav class="tabbar">
+  <button class="tab act" data-view="home" onclick="showView('home')">
+    <span class="tab-ico">🏠</span>Inicio
+  </button>
+  <button class="tab" data-view="nueva" onclick="nuevaCotizacion()">
+    <span class="tab-ico">➕</span>Nueva
+  </button>
+  <button class="tab" data-view="config" onclick="showView('config')">
+    <span class="tab-ico">⚙️</span>Config
+  </button>
+</nav>
+
+<!-- Buscador de materiales -->
+<div class="modal-ov" id="mat-modal">
+  <div class="modal-sheet">
+    <div class="modal-head">
+      <h3>Buscar material</h3>
+      <button class="modal-close" onclick="cerrarBuscadorMaterial()">✕</button>
+    </div>
+    <input id="mat-search" placeholder="Nombre o código...">
+    <div class="mat-results" id="mat-results"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="./app.js"></script>
+</body>
+</html>
