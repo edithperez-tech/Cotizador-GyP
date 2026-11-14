@@ -65,8 +65,6 @@ function showView(name) {
   $$('.view').forEach(v => v.classList.remove('on'));
   $('#view-' + name).classList.add('on');
   $$('.tab').forEach(t => t.classList.toggle('act', t.dataset.view === name));
-  const fb = $('#save-float');
-  if (fb) fb.style.display = (name === 'nueva') ? 'block' : 'none';
   if (name === 'home') renderHome();
   if (name === 'config') renderConfig();
   window.scrollTo(0, 0);
