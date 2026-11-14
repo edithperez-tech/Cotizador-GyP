@@ -246,6 +246,7 @@ z-index:200; opacity:0; pointer-events:none; transition:all .2s; max-width:88vw;
 
 <div class="section-h">Materiales / ítems</div>
 <div id="cot-items"></div>
+<button type="button" class="btn-add-item" onclick="abrirBuscadorGrupo()">📦 Agregar grupo de materiales</button>
 <button type="button" class="btn-add-item" onclick="abrirBuscadorMaterial()">🔍 Agregar material del catálogo</button>
 <button type="button" class="btn-add-item" onclick="agregarItemLibre()">✎ Agregar ítem libre (mano de obra, servicio...)</button>
 
@@ -265,6 +266,31 @@ z-index:200; opacity:0; pointer-events:none; transition:all .2s; max-width:88vw;
 </div>
 </div>
 <div id="cot-tot" class="tot-box"></div>
+
+<div class="section-h">Financiación (opcional)</div>
+<div class="field" style="background:#fff;border:1px solid var(--borde2);border-radius:12px;padding:12px">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+<input type="checkbox" id="cot-fin" style="width:auto" onchange="toggleFinMovil()">
+<label style="margin:0;font-size:13px;font-weight:700;text-transform:none;color:var(--texto)">Aplicar financiación</label>
+</div>
+<div id="fin-campos" style="display:none;margin-top:10px">
+<div class="field-row">
+<div class="field">
+<label>Valor inicial</label>
+<input type="number" id="cot-vinit" value="0" min="0" step="1000" oninput="calcTotales()">
+</div>
+<div class="field">
+<label>Cuotas</label>
+<input type="number" id="cot-cuotas" value="12" min="1" step="1" oninput="calcTotales()">
+</div>
+</div>
+<div class="field">
+<label>Tasa mensual %</label>
+<input type="number" id="cot-tasa" value="1.50" min="0" step="0.01" oninput="calcTotales()">
+</div>
+<div id="fin-resumen" style="font-size:12.5px;color:var(--azul);font-weight:700;margin-top:2px"></div>
+</div>
+</div>
 
 <div class="field">
 <label>Observaciones</label>
@@ -342,6 +368,17 @@ Configúralos aquí una sola vez — quedan guardados en este celular.
 </div>
 <input id="mat-search" placeholder="Nombre o código...">
 <div class="mat-results" id="mat-results"></div>
+</div>
+</div>
+
+<!-- Grupos de materiales -->
+<div class="modal-ov" id="grupo-modal">
+<div class="modal-sheet">
+<div class="modal-head">
+<h3>Grupos de materiales</h3>
+<button class="modal-close" onclick="cerrarBuscadorGrupo()">✕</button>
+</div>
+<div class="mat-results" id="grupo-results"></div>
 </div>
 </div>
 

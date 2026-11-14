@@ -23,7 +23,7 @@ function loadJSON(key, fallback) {
 function saveJSON(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
 
 let CFG = loadJSON(LS.CONFIG, { endpointUrl: '', token: '', vigenciaCot: 30 });
-let CATALOGO = loadJSON(LS.CATALOGO, { items: [], empresas: [], actualizadoEn: null });
+let CATALOGO = loadJSON(LS.CATALOGO, { items: [], empresas: [], grupos: [], actualizadoEn: null });
 let PENDIENTES = loadJSON(LS.PENDIENTES, []);
 let ENVIADAS = loadJSON(LS.ENVIADAS, []);
 
@@ -124,7 +124,7 @@ function renderHome() {
 <div class="qcard-top">
 <div>
 <div class="qcard-cli">${esc(c.cliente?.nom || 'SIN NOMBRE')}</div>
-<div class="qcard-meta">${fmtDate(c.fechaElab)} · ${esc(c.emNom || '')}${c.firmaCliente ? ' · ✓ firmada' : ''}</div>
+<div class="qcard-meta">${fmtDate(c.fechaElab)} · ${esc(c.emNom || '')}${c.firmaCliente ? ' · ✓ firmada' : ''}${c.financiado ? ' · 💳 financiada' : ''}</div>
 </div>
 <span class="chip ${pend ? 'chip-amber' : 'chip-green'}">${pend ? 'Pendiente de enviar' : (c.numAsignado || 'Enviada')}</span>
 </div>
@@ -148,6 +148,7 @@ function verDetalle(idLocal, enviada) {
     `Total: ${fmtCOP(c.total)}\n` +
     `Items: ${c.items.length}\n` +
     `Firma: ${c.firmaCliente ? 'Sí, firmada el ' + fmtDate(c.firmaFecha) : 'No firmada'}\n` +
+    (c.financiado ? `Financiación: ${c.nCuotas} cuotas de ${fmtCOP(c.cuotaMensual)}\n` : '') +
     (enviada ? `Número asignado: ${c.numAsignado || '(pendiente de sincronizar número)'}` : 'Aún no enviada')
   );
 }
@@ -161,6 +162,10 @@ function nuevaCotizacion() {
   $('#cot-form').reset();
   $('#cot-fecha').value = todayISO();
   poblarSelectEmpresas();
+  $('#fin-campos').style.display = 'none';
+  $('#cot-vinit').value = 0;
+  $('#cot-tasa').value = 1.50;
+  $('#cot-cuotas').value = 12;
   renderCotItems();
   calcTotales();
   showView('nueva');
@@ -183,6 +188,11 @@ function editarPendiente(idLocal) {
   $('#cot-desc').value = c.descPct || 0;
   $('#cot-iva').value = c.ivaPct != null ? c.ivaPct : 19;
   $('#cot-notas').value = c.notas || '';
+  $('#cot-fin').checked = !!c.financiado;
+  $('#fin-campos').style.display = c.financiado ? 'block' : 'none';
+  $('#cot-vinit').value = c.valorInicial || 0;
+  $('#cot-tasa').value = c.tasaMensual != null ? c.tasaMensual : 1.50;
+  $('#cot-cuotas').value = c.nCuotas || 12;
   renderCotItems();
   calcTotales();
   showView('nueva');
@@ -250,6 +260,43 @@ function agregarMaterial(matId) {
   calcTotales();
 }
 
+/* --- grupos de materiales --- */
+function abrirBuscadorGrupo() {
+  renderGrupoResultados();
+  $('#grupo-modal').classList.add('on');
+}
+function cerrarBuscadorGrupo() { $('#grupo-modal').classList.remove('on'); }
+
+function renderGrupoResultados() {
+  const grupos = CATALOGO.grupos || [];
+  const wrap = $('#grupo-results');
+  if (!grupos.length) {
+    wrap.innerHTML = `<div class="mat-none">No hay grupos de materiales en el catálogo descargado.<br>Ve a Configuración → Actualizar catálogo.</div>`;
+    return;
+  }
+  wrap.innerHTML = grupos.map(g => `
+<div class="mat-item" style="cursor:pointer" onclick="agregarGrupo('${g.id}')">
+<span class="mat-desc"><b>${esc(g.nom)}</b>${g.desc ? ' — ' + esc(g.desc) : ''}<br><span style="color:var(--gris-claro);font-size:11px">${(g.items || []).length} materiales</span></span>
+</div>`).join('');
+}
+
+function agregarGrupo(gid) {
+  const g = (CATALOGO.grupos || []).find(x => x.id === gid);
+  if (!g) return;
+  (g.items || []).forEach(it => {
+    const m = (CATALOGO.items || []).find(x => x.id === it.matId);
+    if (m) {
+      cotItems.push({ matId: m.id, code: m.code || '', desc: m.desc, uni: m.uni || it.uni || 'UND', cant: it.cant || 1, pVenta: m.precioSugerido || 0 });
+    } else {
+      cotItems.push({ matId: it.matId || '', code: '', desc: it.desc || '(material no disponible, edítelo)', uni: it.uni || 'UND', cant: it.cant || 1, pVenta: 0, libre: true });
+    }
+  });
+  cerrarBuscadorGrupo();
+  renderCotItems();
+  calcTotales();
+  toast(`Grupo "${g.nom}" agregado (${(g.items || []).length} materiales)`, 'ok');
+}
+
 function agregarItemLibre() {
   cotItems.push({ matId: '', code: '', desc: '', uni: 'UND', cant: 1, pVenta: 0, libre: true });
   renderCotItems();
@@ -299,7 +346,45 @@ function calcTotales() {
     (desc > 0 ? ` · Desc ${desc}%: <b class="neg">-${fmtCOP(descV)}</b>` : '') +
     ` · IVA ${iva}%: <b>${fmtCOP(ivaV)}</b>` +
     `<div class="tot-final">TOTAL: ${fmtCOP(total)}</div>`;
+  renderFinResumen(total);
   return { sub, desc, descV, subD, iva, ivaV, total };
+}
+
+/* ============================================================
+FINANCIACIÓN (opcional)
+============================================================ */
+function calcPMT(pv, rate, nper) {
+  if (!rate || rate === 0) return Math.round(pv / (nper || 1));
+  return Math.round(pv * rate / (1 - Math.pow(1 + rate, -nper)));
+}
+function calcAmort(prestamo, tasaMens, nCuotas) {
+  const cuota = calcPMT(prestamo, tasaMens, nCuotas);
+  let saldo = prestamo;
+  const tabla = [];
+  for (let i = 1; i <= nCuotas; i++) {
+    const int = Math.round(saldo * tasaMens);
+    const cap = Math.round(cuota - int);
+    saldo = Math.max(0, Math.round(saldo - cap));
+    tabla.push({ mes: i, cuota, capital: cap, interes: int, saldo });
+  }
+  return tabla;
+}
+function toggleFinMovil() {
+  const on = $('#cot-fin').checked;
+  $('#fin-campos').style.display = on ? 'block' : 'none';
+  calcTotales();
+}
+function renderFinResumen(total) {
+  const chk = $('#cot-fin');
+  const el = $('#fin-resumen');
+  if (!chk || !el) return;
+  if (!chk.checked) { el.textContent = ''; return; }
+  const vinit = parseFloat($('#cot-vinit').value) || 0;
+  const tasa = (parseFloat($('#cot-tasa').value) || 0) / 100;
+  const n = parseInt($('#cot-cuotas').value) || 1;
+  const vFin = Math.max(0, total - vinit);
+  const cuota = calcPMT(vFin, tasa, n);
+  el.innerHTML = `Valor a financiar: ${fmtCOP(vFin)} · Cuota mensual aprox.: ${fmtCOP(cuota)} × ${n}`;
 }
 
 /* ============================================================
@@ -394,6 +479,14 @@ function guardarCotizacionLocal() {
   const firmaCliente = firmaNueva || (pendienteExistente ? pendienteExistente.firmaCliente || '' : '');
   const firmaFecha = firmaNueva ? todayISO() : (pendienteExistente ? pendienteExistente.firmaFecha || '' : '');
 
+  const finOn = $('#cot-fin').checked;
+  const vinit = parseFloat($('#cot-vinit').value) || 0;
+  const tasaPct = parseFloat($('#cot-tasa').value) || 0;
+  const nCuotas = parseInt($('#cot-cuotas').value) || 1;
+  const vFin = finOn ? Math.max(0, t.total - vinit) : 0;
+  const cuota = finOn ? calcPMT(vFin, tasaPct / 100, nCuotas) : 0;
+  const tablaAmort = finOn ? calcAmort(vFin, tasaPct / 100, nCuotas) : [];
+
   const cot = {
     idLocal: editandoId || uid(),
     fechaElab, fechaVig: vig.toISOString().slice(0, 10),
@@ -413,6 +506,13 @@ function guardarCotizacionLocal() {
     ivaPct: t.iva, ivaValor: t.ivaV, total: t.total,
     notas: $('#cot-notas').value.trim().toUpperCase(),
     firmaCliente, firmaFecha,
+    financiado: finOn,
+    valorInicial: finOn ? vinit : 0,
+    valorFinanciar: vFin,
+    nCuotas: finOn ? nCuotas : 0,
+    tasaMensual: finOn ? tasaPct : 0,
+    cuotaMensual: cuota,
+    amortizacion: tablaAmort,
     creadaEn: new Date().toISOString(),
     origenMovil: true
   };
@@ -460,7 +560,7 @@ async function actualizarCatalogo() {
     const txt = await res.text();
     const data = JSON.parse(txt);
     if (!data.ok) throw new Error(data.error || 'Respuesta inválida');
-    CATALOGO = { items: data.catalogo || [], empresas: data.empresas || [], actualizadoEn: new Date().toISOString() };
+    CATALOGO = { items: data.catalogo || [], empresas: data.empresas || [], grupos: data.grupos || [], actualizadoEn: new Date().toISOString() };
     CFG.vigenciaCot = data.vigenciaCot || 30;
     saveJSON(LS.CATALOGO, CATALOGO);
     saveJSON(LS.CONFIG, CFG);
