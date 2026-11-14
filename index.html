@@ -150,6 +150,10 @@ color:var(--gris-claro); font-size:10.5px; font-weight:700}
 .tab .tab-ico{font-size:19px}
 .tab.act{color:var(--terracota)}
 
+/* ---------- Barra flotante de guardar (firma) ---------- */
+.save-float{position:fixed; left:0; right:0; bottom:calc(58px + env(safe-area-inset-bottom)); z-index:25;
+background:#fff; padding:10px 16px; border-top:1px solid var(--borde2); box-shadow:0 -4px 10px rgba(0,0,0,.06)}
+
 /* ---------- Toast ---------- */
 .toast{position:fixed; left:50%; bottom:76px; transform:translateX(-50%) translateY(10px);
 background:var(--texto); color:#fff; padding:10px 18px; border-radius:30px; font-size:13px; font-weight:600;
@@ -274,11 +278,12 @@ z-index:200; opacity:0; pointer-events:none; transition:all .2s; max-width:88vw;
 <div style="display:flex; justify-content:flex-end; margin-top:6px; margin-bottom:4px">
 <button type="button" class="btn-sm" onclick="limpiarFirma()">↺ Limpiar firma</button>
 </div>
-<p class="help-text">Pide al cliente que firme aquí con el dedo antes de guardar. Quedará incluida en el PDF.</p>
+<p class="help-text">Pide al cliente que firme aquí con el dedo. Para bajar la pantalla, desliza el dedo <b>por fuera</b> del recuadro de firma (por ejemplo, en este texto o en los botones de abajo).</p>
 
 <button type="button" class="btn btn-primary btn-block" style="margin-top:6px" onclick="guardarCotizacionLocal()">
 💾 Guardar cotización
 </button>
+<div style="height:76px"></div>
 </form>
 </section>
 
@@ -310,6 +315,11 @@ Configúralos aquí una sola vez — quedan guardados en este celular.
 </section>
 
 </main>
+
+<!-- Barra flotante: siempre visible dentro de "Nueva cotización", sin necesidad de bajar la pantalla -->
+<div class="save-float" id="save-float">
+<button type="button" class="btn btn-primary btn-block" onclick="guardarCotizacionLocal()">💾 Guardar cotización</button>
+</div>
 
 <nav class="tabbar">
 <button class="tab act" data-view="home" onclick="showView('home')">
