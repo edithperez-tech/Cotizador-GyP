@@ -388,7 +388,7 @@ function renderFinResumen(total) {
 /* ============================================================
 FIRMA DEL CLIENTE (táctil: dedo o lápiz)
 ============================================================ */
-let firmaCtx = null, firmaDrawing = false, firmaVacia = true, firmaLastX = 0, firmaLastY = 0;
+let firmaCtx = null, firmaDrawing = false, firmaVacia = true, firmaBloqueada = false, firmaLastX = 0, firmaLastY = 0;
 
 function initFirmaCanvas(dataUrlPrevia) {
   const cv = $('#firma-canvas');
@@ -404,12 +404,19 @@ function initFirmaCanvas(dataUrlPrevia) {
   ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1A1A18';
   firmaCtx = ctx;
   firmaVacia = true;
+  firmaBloqueada = false;
 
   if (dataUrlPrevia) {
     const img = new Image();
-    img.onload = () => { ctx.drawImage(img, 0, 0, rect.width, rect.height); firmaVacia = false; };
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0, rect.width, rect.height);
+      firmaVacia = false;
+      firmaBloqueada = true; // ya venía firmada: queda bloqueada hasta que la eliminen
+      actualizarBotonesFirma();
+    };
     img.src = dataUrlPrevia;
   }
+  actualizarBotonesFirma();
 
   if (cv._firmaListenersAgregados) return; // evita duplicar listeners al reabrir el formulario
   cv._firmaListenersAgregados = true;
@@ -419,13 +426,14 @@ function initFirmaCanvas(dataUrlPrevia) {
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   };
   const start = (e) => {
+    if (firmaBloqueada) return; // ya aceptada: no se puede escribir encima
     e.preventDefault();
     try { cv.setPointerCapture(e.pointerId); } catch (ex) {}
     firmaDrawing = true; firmaVacia = false;
     const p = pos(e); firmaLastX = p.x; firmaLastY = p.y;
   };
   const move = (e) => {
-    if (!firmaDrawing) return;
+    if (firmaBloqueada || !firmaDrawing) return;
     e.preventDefault();
     const p = pos(e);
     firmaCtx.beginPath();
@@ -441,13 +449,43 @@ function initFirmaCanvas(dataUrlPrevia) {
   cv.addEventListener('pointercancel', end);
 }
 
+// Muestra Limpiar+Aceptar mientras se está dibujando, y solo Eliminar
+// cuando la firma ya quedó aceptada (bloqueada).
+function actualizarBotonesFirma() {
+  const limpiar = $('#btn-firma-limpiar');
+  const aceptar = $('#btn-firma-aceptar');
+  const eliminar = $('#btn-firma-eliminar');
+  if (!limpiar || !aceptar || !eliminar) return;
+  limpiar.style.display = firmaBloqueada ? 'none' : '';
+  aceptar.style.display = firmaBloqueada ? 'none' : '';
+  eliminar.style.display = firmaBloqueada ? '' : 'none';
+}
+
 function limpiarFirma() {
+  const cv = $('#firma-canvas');
+  if (!cv || !firmaCtx || firmaBloqueada) return;
+  const dpr = window.devicePixelRatio || 1;
+  firmaCtx.fillStyle = '#fff';
+  firmaCtx.fillRect(0, 0, cv.width / dpr, cv.height / dpr);
+  firmaVacia = true;
+}
+
+function aceptarFirma() {
+  if (firmaVacia) { toast('Pide al cliente que firme primero', 'err'); return; }
+  firmaBloqueada = true;
+  actualizarBotonesFirma();
+  toast('Firma confirmada', 'ok');
+}
+
+function eliminarFirma() {
   const cv = $('#firma-canvas');
   if (!cv || !firmaCtx) return;
   const dpr = window.devicePixelRatio || 1;
   firmaCtx.fillStyle = '#fff';
   firmaCtx.fillRect(0, 0, cv.width / dpr, cv.height / dpr);
   firmaVacia = true;
+  firmaBloqueada = false;
+  actualizarBotonesFirma();
 }
 
 function obtenerFirmaDataUrl() {
