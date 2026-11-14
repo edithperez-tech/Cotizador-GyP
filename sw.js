@@ -1,10 +1,16 @@
 'use strict';
 
 /* Cache del "cascarón" de la app para que abra sin internet.
-   Los datos (catálogo, cotizaciones) NO se cachean aquí, viven en
-   localStorage y se manejan en app.js. */
+Los datos (catálogo, cotizaciones) NO se cachean aquí, viven en
+localStorage y se manejan en app.js.
 
-const CACHE_NAME = 'cotizador-gyp-v1';
+Estrategia: red primero. Así, en cuanto hay internet, cualquier cambio
+publicado (código nuevo, correcciones) se ve de inmediato la próxima vez
+que se abre la app — y si además cambió este archivo (sw.js), la app se
+recarga sola (ver app.js: registrarServiceWorkerConAutoActualizacion).
+Si no hay internet, se usa la última copia guardada. */
+
+const CACHE_NAME = 'cotizador-gyp-v2';
 const APP_SHELL = [
   './',
   './index.html',
@@ -28,6 +34,13 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Permite que la app (botón "Buscar actualización" o al abrir) le diga a esta
+// versión nueva que tome control de una vez, sin esperar a que se cierren
+// todas las pestañas/instancias abiertas.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
 // Nunca interceptar llamadas al backend (Apps Script): esas siempre deben ir a la red.
 self.addEventListener('fetch', (event) => {
   const url = event.request.url;
@@ -37,15 +50,12 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const fetchPromise = fetch(event.request).then((networkResp) => {
-        if (networkResp && networkResp.status === 200) {
-          const clone = networkResp.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        }
-        return networkResp;
-      }).catch(() => cached);
-      return cached || fetchPromise;
-    })
+    fetch(event.request).then((networkResp) => {
+      if (networkResp && networkResp.status === 200) {
+        const clone = networkResp.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+      }
+      return networkResp;
+    }).catch(() => caches.match(event.request))
   );
 });

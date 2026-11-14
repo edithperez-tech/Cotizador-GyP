@@ -82,7 +82,7 @@ function setConnStatus(online) {
   pill.textContent = online ? '● En línea' : '○ Sin conexión';
   pill.className = 'conn-pill ' + (online ? 'conn-on' : 'conn-off');
 }
-window.addEventListener('online', () => { setConnStatus(true); intentarPing(); });
+window.addEventListener('online', () => { setConnStatus(true); intentarPing(); actualizarCatalogoSilencioso(); });
 window.addEventListener('offline', () => setConnStatus(false));
 
 async function intentarPing() {
@@ -554,24 +554,38 @@ async function actualizarCatalogo() {
   }
   const btn = $('#btn-actualizar-cat');
   btn.disabled = true; btn.textContent = 'Descargando...';
+  const ok = await actualizarCatalogoSilencioso();
+  if (ok) {
+    toast(`Catálogo actualizado: ${CATALOGO.items.length} materiales`, 'ok');
+    renderConfig();
+  } else {
+    setConnStatus(false);
+    toast('No se pudo actualizar (sin conexión o URL/token incorrectos)', 'err');
+  }
+  btn.disabled = false; btn.textContent = '⬇ Actualizar catálogo';
+}
+
+/* Descarga el catálogo (materiales, empresas y grupos) sin molestar al
+usuario con mensajes — se usa al abrir la app y al recuperar señal, para
+que los cambios hechos en la computadora (precios, materiales nuevos,
+grupos nuevos) lleguen solos al celular. */
+async function actualizarCatalogoSilencioso() {
+  if (!CFG.endpointUrl || !CFG.token) return false;
   try {
     const url = CFG.endpointUrl + (CFG.endpointUrl.includes('?') ? '&' : '?') + 'api=catalogo&token=' + encodeURIComponent(CFG.token);
     const res = await fetch(url, { cache: 'no-store' });
     const txt = await res.text();
     const data = JSON.parse(txt);
-    if (!data.ok) throw new Error(data.error || 'Respuesta inválida');
+    if (!data.ok) return false;
     CATALOGO = { items: data.catalogo || [], empresas: data.empresas || [], grupos: data.grupos || [], actualizadoEn: new Date().toISOString() };
     CFG.vigenciaCot = data.vigenciaCot || 30;
     saveJSON(LS.CATALOGO, CATALOGO);
     saveJSON(LS.CONFIG, CFG);
     setConnStatus(true);
-    toast(`Catálogo actualizado: ${CATALOGO.items.length} materiales`, 'ok');
-    renderConfig();
+    if ($('#view-config').classList.contains('on')) renderConfig();
+    return true;
   } catch (e) {
-    setConnStatus(false);
-    toast('No se pudo actualizar (sin conexión o URL/token incorrectos)', 'err');
-  } finally {
-    btn.disabled = false; btn.textContent = '⬇ Actualizar catálogo';
+    return false;
   }
 }
 
@@ -625,7 +639,10 @@ function init() {
   showView('home');
   $('#mat-search').addEventListener('input', (e) => renderMatResultados(e.target.value));
 
-  if (navigator.onLine) intentarPing();
+  if (navigator.onLine) {
+    intentarPing();
+    actualizarCatalogoSilencioso(); // trae materiales/grupos/precios nuevos al abrir la app
+  }
 
   // Reintento periódico silencioso cada 45s: si hay conexión y pendientes, sincroniza solo
   setInterval(async () => {
@@ -633,9 +650,61 @@ function init() {
     if (ok && PENDIENTES.length) sincronizarPendientes();
   }, 45000);
 
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  registrarServiceWorkerConAutoActualizacion();
+}
+
+/* ============================================================
+ACTUALIZACIÓN DE LA APP (service worker)
+============================================================ */
+function registrarServiceWorkerConAutoActualizacion() {
+  if (!('serviceWorker' in navigator)) return;
+
+  navigator.serviceWorker.register('./sw.js').then((reg) => {
+    reg.update().catch(() => {}); // revisa si hay una versión nueva apenas abre
+    reg.addEventListener('updatefound', () => {
+      const nueva = reg.installing;
+      if (!nueva) return;
+      nueva.addEventListener('statechange', () => {
+        if (nueva.state === 'installed' && navigator.serviceWorker.controller) {
+          // Hay una version nueva lista: se activa sola, sin pedirle nada al usuario.
+          nueva.postMessage({ type: 'SKIP_WAITING' });
+        }
+      });
+    });
+  }).catch(() => {});
+
+  let yaRecargo = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (yaRecargo) return;
+    yaRecargo = true;
+    window.location.reload();
+  });
+}
+
+/* Botón "Buscar actualización" en Configuración: fuerza revisar tanto el
+catálogo como la versión de la app, y si hay algo nuevo, recarga sola. */
+async function actualizarApp() {
+  toast('Buscando actualización...', 'ok');
+  let huboCambioApp = false;
+  try {
+    if (navigator.onLine) await actualizarCatalogoSilencioso();
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg) {
+        await reg.update();
+        if (reg.waiting) {
+          huboCambioApp = true;
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+      }
+    }
+  } catch (e) { /* seguimos igual */ }
+  if (!huboCambioApp) {
+    toast('Ya tienes la última versión y el catálogo al día', 'ok');
   }
+  // el listener de controllerchange recarga sola si sw.js cambió;
+  // si no cambió, igual refrescamos la vista de Configuración con el catálogo nuevo.
+  if ($('#view-config').classList.contains('on')) renderConfig();
 }
 
 document.addEventListener('DOMContentLoaded', init);
