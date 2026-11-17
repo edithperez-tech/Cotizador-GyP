@@ -14,7 +14,7 @@ archivo (sw.js), la app se recarga sola (ver app.js:
 registrarServiceWorkerConAutoActualizacion).
 Si no hay internet, se usa la última copia guardada. */
 
-const CACHE_NAME = 'cotizador-gyp-v3';
+const CACHE_NAME = 'cotizador-gyp-v4';
 const APP_SHELL = [
   './',
   './index.html',
