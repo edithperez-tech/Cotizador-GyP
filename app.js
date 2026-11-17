@@ -23,7 +23,10 @@ function loadJSON(key, fallback) {
 function saveJSON(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
 
 let CFG = loadJSON(LS.CONFIG, { endpointUrl: '', token: '', vigenciaCot: 30 });
-let CATALOGO = loadJSON(LS.CATALOGO, { items: [], empresas: [], grupos: [], actualizadoEn: null });
+let CATALOGO = loadJSON(LS.CATALOGO, { items: [], empresas: [], grupos: [], clientes: [], barrios: [], actualizadoEn: null });
+
+// Mismos municipios que la app de escritorio
+const MUNICIPIOS_CAQUETA = ['FLORENCIA', 'ALBANIA', 'BELEN DE LOS ANDAQUIES', 'CARTAGENA DEL CHAIRA', 'CURILLO', 'EL DONCELLO', 'EL PAUJIL', 'LA MONTAÑITA', 'MILAN', 'MORELIA', 'PUERTO RICO', 'SAN JOSE DEL FRAGUA', 'SAN VICENTE DEL CAGUAN', 'SOLANO', 'SOLITA', 'VALPARAISO'];
 let PENDIENTES = loadJSON(LS.PENDIENTES, []);
 let ENVIADAS = loadJSON(LS.ENVIADAS, []);
 
@@ -160,6 +163,8 @@ function nuevaCotizacion() {
   $('#cot-form').reset();
   $('#cot-fecha').value = todayISO();
   poblarSelectEmpresas();
+  poblarMunicipios('');
+  poblarBarrios();
   $('#fin-campos').style.display = 'none';
   $('#cot-vinit').value = 0;
   $('#cot-tasa').value = 1.50;
@@ -181,7 +186,10 @@ function editarPendiente(idLocal) {
   $('#cot-cnom').value = c.cliente?.nom || '';
   $('#cot-cnit').value = c.cliente?.nit || '';
   $('#cot-ctel').value = c.cliente?.tel || '';
-  $('#cot-cciudad').value = c.cliente?.ciudad || '';
+  $('#cot-cem').value = c.cliente?.email || '';
+  poblarMunicipios(c.cliente?.municipio || c.cliente?.ciudad || '');
+  poblarBarrios();
+  $('#cot-cbar').value = c.cliente?.barrio || '';
   $('#cot-cdir').value = c.cliente?.dir || '';
   $('#cot-desc').value = c.descPct || 0;
   $('#cot-iva').value = c.ivaPct != null ? c.ivaPct : 19;
@@ -210,6 +218,60 @@ function poblarSelectEmpresas() {
   const empresas = CATALOGO.empresas || [];
   sel.innerHTML = '<option value="">— Seleccione empresa —</option>' +
     empresas.map(e => `<option value="${esc(e.nom)}">${esc(e.nom)}</option>`).join('');
+}
+
+/* --- datos del cliente: municipio, barrio y autocompletar por cédula --- */
+function poblarMunicipios(actual) {
+  const sel = $('#cot-cmun');
+  const act = String(actual || '').trim().toUpperCase();
+  let html = '<option value="">— SELECCIONE —</option>' +
+    MUNICIPIOS_CAQUETA.map(m => `<option value="${esc(m)}"${act === m ? ' selected' : ''}>${esc(m)}</option>`).join('');
+  if (act && MUNICIPIOS_CAQUETA.indexOf(act) === -1) {
+    html += `<option value="${esc(act)}" selected>${esc(act)} (verificar)</option>`;
+  }
+  sel.innerHTML = html;
+}
+
+// Barrios ya conocidos: los que manda el sistema + los de cotizaciones hechas en este celular
+function listaBarrios() {
+  const set = {};
+  (CATALOGO.barrios || []).forEach(b => { b = String(b || '').trim().toUpperCase(); if (b) set[b] = true; });
+  PENDIENTES.concat(ENVIADAS).forEach(c => {
+    const b = String((c.cliente && c.cliente.barrio) || '').trim().toUpperCase();
+    if (b) set[b] = true;
+  });
+  return Object.keys(set).sort();
+}
+function poblarBarrios() {
+  $('#cot-cbar-dl').innerHTML = listaBarrios().map(b => `<option value="${esc(b)}"></option>`).join('');
+}
+
+// Busca el cliente por cédula/NIT: primero lo guardado en este celular (más reciente),
+// y si no, la lista de clientes que descarga el catálogo.
+function buscarClienteLocal(nit) {
+  let mejor = null, mejorFecha = '';
+  PENDIENTES.concat(ENVIADAS).forEach(c => {
+    if (c.cliente && String(c.cliente.nit || '').trim() === nit) {
+      const f = c.creadaEn || c.fechaElab || '';
+      if (!mejor || f >= mejorFecha) { mejor = c.cliente; mejorFecha = f; }
+    }
+  });
+  if (mejor) return mejor;
+  return (CATALOGO.clientes || []).find(c => String(c.nit || '').trim() === nit) || null;
+}
+
+function buscarClientePorCedula() {
+  const nit = ($('#cot-cnit').value || '').trim();
+  if (!nit) return;
+  const cl = buscarClienteLocal(nit);
+  if (!cl) return;
+  $('#cot-cnom').value = cl.nom || '';
+  $('#cot-ctel').value = cl.tel || '';
+  $('#cot-cem').value = cl.email || '';
+  $('#cot-cdir').value = cl.dir || '';
+  poblarMunicipios(cl.municipio || cl.ciudad || '');
+  $('#cot-cbar').value = cl.barrio || '';
+  toast('Cliente encontrado: datos autocompletados', 'ok');
 }
 
 /* --- buscador de materiales --- */
@@ -497,6 +559,14 @@ function obtenerFirmaDataUrl() {
 function guardarCotizacionLocal() {
   const cnom = $('#cot-cnom').value.trim();
   if (!cnom) { toast('Falta el nombre del cliente', 'err'); $('#cot-cnom').focus(); return; }
+  const cnit = $('#cot-cnit').value.trim();
+  if (!cnit) { toast('Falta la cédula / NIT del cliente', 'err'); $('#cot-cnit').focus(); return; }
+  const ctel = $('#cot-ctel').value.trim();
+  if (!ctel) { toast('Falta el teléfono del cliente', 'err'); $('#cot-ctel').focus(); return; }
+  const cmun = $('#cot-cmun').value.trim().toUpperCase();
+  if (!cmun) { toast('Selecciona el municipio del cliente', 'err'); $('#cot-cmun').focus(); return; }
+  const cbar = $('#cot-cbar').value.trim().toUpperCase();
+  if (!cbar) { toast('Falta el barrio del cliente', 'err'); $('#cot-cbar').focus(); return; }
   const emNom = $('#cot-em').value;
   if (!emNom) { toast('Selecciona la empresa que cotiza', 'err'); $('#cot-em').focus(); return; }
   const itemsValidos = cotItems.filter(it => (it.desc || '').trim() && (it.cant || 0) > 0);
@@ -529,9 +599,12 @@ function guardarCotizacionLocal() {
     emNom, emNit: empresa.nit || '',
     cliente: {
       nom: cnom.toUpperCase(),
-      nit: $('#cot-cnit').value.trim(),
-      tel: $('#cot-ctel').value.trim(),
-      ciudad: $('#cot-cciudad').value.trim().toUpperCase(),
+      nit: cnit,
+      tel: ctel,
+      email: $('#cot-cem').value.trim(),
+      municipio: cmun,
+      ciudad: cmun, // compatibilidad con cotizaciones anteriores
+      barrio: cbar,
       dir: $('#cot-cdir').value.trim().toUpperCase()
     },
     items: itemsValidos.map(it => ({
@@ -613,7 +686,7 @@ async function actualizarCatalogoSilencioso() {
     const txt = await res.text();
     const data = JSON.parse(txt);
     if (!data.ok) return false;
-    CATALOGO = { items: data.catalogo || [], empresas: data.empresas || [], grupos: data.grupos || [], actualizadoEn: new Date().toISOString() };
+    CATALOGO = { items: data.catalogo || [], empresas: data.empresas || [], grupos: data.grupos || [], clientes: data.clientes || [], barrios: data.barrios || [], actualizadoEn: new Date().toISOString() };
     CFG.vigenciaCot = data.vigenciaCot || 30;
     saveJSON(LS.CATALOGO, CATALOGO);
     saveJSON(LS.CONFIG, CFG);
